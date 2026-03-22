@@ -270,7 +270,7 @@
 </div>
 
 <script>
-const MODEL_VERSION = 'f121d640bd286e1fdc67f9799164c1d5be36ff74f7626f6f0ced97cdfa73ece';
+const MODEL_VERSION = null;
 const PROXY = 'https://tiny-mountain-127d.dsehy512.workers.dev';
 
 const SIZES = [
@@ -511,10 +511,10 @@ async function runUpscale() {
         'Authorization': `Token ${apiKey}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({
-        version: MODEL_VERSION,
-        input: { image: b64, scale: 4, face_enhance: false }
-      })
+   body: JSON.stringify({
+  model: 'nightmareai/real-esrgan',
+  input: { image: b64, scale: 4, face_enhance: false }
+})
     });
 
     if (!createRes.ok) {
