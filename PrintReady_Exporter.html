@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PrintReady — Photo Export Tool</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;1,9..144,300&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0e0e0f;
+    --bg2: #161618;
+    --bg3: #1e1e21;
+    --border: rgba(255,255,255,0.07);
+    --border2: rgba(255,255,255,0.13);
+    --text: #f0ede8;
+    --text2: #9a9690;
+    --text3: #5a5753;
+    --accent: #d4a853;
+    --accent2: #b8893a;
+    --accent-bg: rgba(212,168,83,0.1);
+    --green: #4caf7d;
+    --green-bg: rgba(76,175,125,0.12);
+    --red: #e05c5c;
+    --red-bg: rgba(224,92,92,0.1);
+    --amber: #e09a3c;
+    --amber-bg: rgba(224,154,60,0.1);
+    --radius: 10px;
+    --radius-sm: 6px;
+  }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+  }
+
+  /* ── Layout ── */
+  .shell {
+    min-height: 100vh;
+    display: grid;
+    grid-template-rows: auto 1fr;
+  }
+
+  header {
+    padding: 28px 40px 24px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 20px;
+  }
+
+  .logo {
+    font-family: 'Fraunces', serif;
+    font-size: 26px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+
+  .logo-sub {
+    font-size: 11px;
+    color: var(--text3);
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .main {
+    display: grid;
+    grid-template-columns: 320px 1fr;
+    height: 100%;
+    min-height: calc(100vh - 77px);
+  }
+
+  /* ── Left panel ── */
+  .left {
+    border-right: 1px solid var(--border);
+    padding: 28px 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    overflow-y: auto;
+  }
+
+  /* ── Drop zone ── */
+  .drop-zone {
+    border: 1.5px dashed var(--border2);
+    border-radius: var(--radius);
+    padding: 32px 16px;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    transition: border-color 0.2s, background 0.2s;
+    background: var(--bg2);
+  }
+  .drop-zone:hover, .drop-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+  }
+  .drop-zone input[type=file] {
+    position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+  }
+  .drop-icon {
+    font-size: 36px;
+    margin-bottom: 10px;
+    display: block;
+  }
+  .drop-title {
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    font-weight: 300;
+    color: var(--text);
+    margin-bottom: 4px;
+  }
+  .drop-hint { color: var(--text3); font-size: 11px; }
+
+  /* ── Preview card ── */
+  .preview-card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: none;
+  }
+  .preview-img-wrap {
+    width: 100%;
+    height: 160px;
+    overflow: hidden;
+    position: relative;
+    background: var(--bg3);
+  }
+  .preview-img-wrap img {
+    width: 100%; height: 100%; object-fit: cover;
+  }
+  .preview-meta {
+    padding: 12px 14px;
+  }
+  .preview-filename {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    margin-bottom: 6px;
+  }
+  .preview-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .preview-dims { color: var(--text2); font-size: 11px; }
+  .quality-pill {
+    font-size: 10px;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 500;
+  }
+  .q-great { background: var(--green-bg); color: var(--green); }
+  .q-good  { background: var(--amber-bg); color: var(--amber); }
+  .q-low   { background: var(--red-bg);   color: var(--red);   }
+
+  .change-btn {
+    display: block;
+    width: 100%;
+    margin-top: 10px;
+    padding: 6px;
+    background: none;
+    border: 1px solid var(--border2);
+    border-radius: var(--radius-sm);
+    color: var(--text2);
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    cursor: pointer;
+    text-align: center;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .change-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── Spec badges ── */
+  .specs {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .spec-label { font-size: 10px; color: var(--text3); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 2px; }
+  .spec-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .spec-badge {
+    font-size: 10px;
+    padding: 3px 9px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    color: var(--text2);
+    background: var(--bg3);
+  }
+  .spec-badge.on { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); }
+
+  /* ── Export button ── */
+  .export-btn {
+    width: 100%;
+    padding: 13px;
+    background: var(--accent);
+    color: #0e0e0f;
+    border: none;
+    border-radius: var(--radius);
+    font-family: 'DM Mono', monospace;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+    letter-spacing: 0.03em;
+  }
+  .export-btn:not(:disabled):hover { opacity: 0.88; }
+  .export-btn:not(:disabled):active { transform: scale(0.98); }
+  .export-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+  .count-note {
+    text-align: center;
+    color: var(--text3);
+    font-size: 11px;
+    margin-top: -12px;
+  }
+
+  /* ── Progress ── */
+  .progress-wrap { display: none; }
+  .prog-bar-bg {
+    height: 3px;
+    background: var(--bg3);
+    border-radius: 99px;
+    overflow: hidden;
+    margin-bottom: 8px;
+  }
+  .prog-bar-fill {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 99px;
+    transition: width 0.25s;
+    width: 0%;
+  }
+  .prog-label { font-size: 11px; color: var(--text2); margin-bottom: 8px; }
+  .log-list { display: flex; flex-direction: column; gap: 4px; max-height: 160px; overflow-y: auto; }
+  .log-item {
+    font-size: 11px;
+    padding: 5px 10px;
+    border-radius: var(--radius-sm);
+    background: var(--bg3);
+    color: var(--text2);
+  }
+  .log-item.done { background: var(--green-bg); color: var(--green); }
+  .log-item.err  { background: var(--red-bg);   color: var(--red);   }
+
+  /* ── Right panel — size picker ── */
+  .right {
+    padding: 28px 32px;
+    overflow-y: auto;
+  }
+
+  .right-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .right-title {
+    font-family: 'Fraunces', serif;
+    font-size: 18px;
+    font-weight: 300;
+    color: var(--text);
+  }
+
+  .filter-row { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filter-btn {
+    font-size: 11px;
+    padding: 5px 14px;
+    border-radius: 20px;
+    border: 1px solid var(--border2);
+    background: none;
+    color: var(--text2);
+    font-family: 'DM Mono', monospace;
+    cursor: pointer;
+    transition: all 0.15s;
+    letter-spacing: 0.04em;
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-btn.active { background: var(--accent); border-color: var(--accent); color: #0e0e0f; }
+
+  .select-controls {
+    display: flex;
+    gap: 14px;
+    margin-bottom: 20px;
+  }
+  .ctrl-link {
+    font-size: 11px;
+    color: var(--text3);
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    background: none;
+    border: none;
+    font-family: 'DM Mono', monospace;
+    transition: color 0.15s;
+  }
+  .ctrl-link:hover { color: var(--accent); }
+
+  /* ── Size grid ── */
+  .category-section { margin-bottom: 28px; }
+  .cat-heading {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--text3);
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .size-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+    gap: 8px;
+  }
+
+  .size-btn {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    padding: 12px 8px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+    user-select: none;
+    position: relative;
+  }
+  .size-btn:hover {
+    border-color: var(--border2);
+    background: var(--bg3);
+  }
+  .size-btn.selected {
+    border-color: var(--accent);
+    background: var(--accent-bg);
+  }
+  .size-btn.selected::after {
+    content: '✓';
+    position: absolute;
+    top: 5px;
+    right: 7px;
+    font-size: 9px;
+    color: var(--accent);
+  }
+  .size-in {
+    font-family: 'Fraunces', serif;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 3px;
+  }
+  .size-px {
+    font-size: 9px;
+    color: var(--text3);
+    line-height: 1.4;
+  }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 99px; }
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <header>
+    <div class="logo">PrintReady</div>
+    <div class="logo-sub">300 DPI Photo Export Tool</div>
+  </header>
+
+  <div class="main">
+
+    <!-- LEFT PANEL -->
+    <div class="left">
+
+      <!-- Drop zone -->
+      <div class="drop-zone" id="dropZone">
+        <input type="file" id="fileInput" accept="image/*">
+        <span class="drop-icon">⬡</span>
+        <div class="drop-title">Drop your photo here</div>
+        <div class="drop-hint">or click to browse · JPG · PNG · TIFF · WEBP</div>
+      </div>
+
+      <!-- Preview card (hidden until image loaded) -->
+      <div class="preview-card" id="previewCard">
+        <div class="preview-img-wrap">
+          <img id="previewImg" src="" alt="">
+        </div>
+        <div class="preview-meta">
+          <div class="preview-filename" id="fileName">—</div>
+          <div class="preview-row">
+            <span class="preview-dims" id="fileDims">—</span>
+            <span class="quality-pill" id="qualityPill">—</span>
+          </div>
+          <button class="change-btn" onclick="resetPhoto()">↩ Change photo</button>
+        </div>
+      </div>
+
+      <!-- Spec badges -->
+      <div class="specs">
+        <div class="spec-label">Output specs</div>
+        <div class="spec-row">
+          <span class="spec-badge on">PNG lossless</span>
+          <span class="spec-badge on">300 DPI</span>
+          <span class="spec-badge on">sRGB</span>
+          <span class="spec-badge on">Center crop</span>
+        </div>
+      </div>
+
+      <!-- Export -->
+      <button class="export-btn" id="exportBtn" onclick="startExport()" disabled>
+        Export Selected Sizes
+      </button>
+      <div class="count-note" id="countNote">No sizes selected</div>
+
+      <!-- Progress -->
+      <div class="progress-wrap" id="progressWrap">
+        <div class="prog-bar-bg"><div class="prog-bar-fill" id="progFill"></div></div>
+        <div class="prog-label" id="progLabel"></div>
+        <div class="log-list" id="logList"></div>
+      </div>
+
+    </div>
+
+    <!-- RIGHT PANEL -->
+    <div class="right">
+      <div class="right-header">
+        <div class="right-title">Select print sizes</div>
+        <div class="filter-row" id="filterRow">
+          <button class="filter-btn active" onclick="filterCat('all',this)">All sizes</button>
+          <button class="filter-btn" onclick="filterCat('wallet',this)">Wallet</button>
+          <button class="filter-btn" onclick="filterCat('standard',this)">Standard</button>
+          <button class="filter-btn" onclick="filterCat('large',this)">Large format</button>
+          <button class="filter-btn" onclick="filterCat('canvas',this)">Canvas / mural</button>
+        </div>
+      </div>
+
+      <div class="select-controls">
+        <button class="ctrl-link" onclick="selectAll()">Select all</button>
+        <button class="ctrl-link" onclick="selectNone()">Clear all</button>
+        <button class="ctrl-link" onclick="selectCat('wallet')">All wallet</button>
+        <button class="ctrl-link" onclick="selectCat('standard')">All standard</button>
+        <button class="ctrl-link" onclick="selectCat('large')">All large</button>
+        <button class="ctrl-link" onclick="selectCat('canvas')">All canvas</button>
+      </div>
+
+      <div id="sizeContainer"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+const SIZES = [
+  // Wallet
+  { name:'2×3',     w:2,    h:3,    cat:'wallet'   },
+  { name:'2.5×3.5', w:2.5,  h:3.5,  cat:'wallet'   },
+  { name:'3×3',     w:3,    h:3,    cat:'wallet'   },
+  { name:'3×4',     w:3,    h:4,    cat:'wallet'   },
+  // Standard
+  { name:'4×4',     w:4,    h:4,    cat:'standard' },
+  { name:'4×6',     w:4,    h:6,    cat:'standard' },
+  { name:'4×8',     w:4,    h:8,    cat:'standard' },
+  { name:'5×5',     w:5,    h:5,    cat:'standard' },
+  { name:'5×7',     w:5,    h:7,    cat:'standard' },
+  { name:'6×6',     w:6,    h:6,    cat:'standard' },
+  { name:'6×8',     w:6,    h:8,    cat:'standard' },
+  { name:'8×8',     w:8,    h:8,    cat:'standard' },
+  { name:'8×10',    w:8,    h:10,   cat:'standard' },
+  { name:'8×12',    w:8,    h:12,   cat:'standard' },
+  { name:'10×10',   w:10,   h:10,   cat:'standard' },
+  { name:'10×13',   w:10,   h:13,   cat:'standard' },
+  { name:'10×14',   w:10,   h:14,   cat:'standard' },
+  { name:'11×14',   w:11,   h:14,   cat:'standard' },
+  { name:'11×17',   w:11,   h:17,   cat:'standard' },
+  { name:'12×12',   w:12,   h:12,   cat:'standard' },
+  { name:'12×16',   w:12,   h:16,   cat:'standard' },
+  { name:'12×18',   w:12,   h:18,   cat:'standard' },
+  // Large
+  { name:'13×19',   w:13,   h:19,   cat:'large'    },
+  { name:'16×16',   w:16,   h:16,   cat:'large'    },
+  { name:'16×20',   w:16,   h:20,   cat:'large'    },
+  { name:'16×24',   w:16,   h:24,   cat:'large'    },
+  { name:'18×24',   w:18,   h:24,   cat:'large'    },
+  { name:'20×20',   w:20,   h:20,   cat:'large'    },
+  { name:'20×24',   w:20,   h:24,   cat:'large'    },
+  { name:'20×30',   w:20,   h:30,   cat:'large'    },
+  { name:'24×24',   w:24,   h:24,   cat:'large'    },
+  { name:'24×30',   w:24,   h:30,   cat:'large'    },
+  { name:'24×36',   w:24,   h:36,   cat:'large'    },
+  { name:'30×30',   w:30,   h:30,   cat:'large'    },
+  // Canvas / Mural
+  { name:'30×40',   w:30,   h:40,   cat:'canvas'   },
+  { name:'36×36',   w:36,   h:36,   cat:'canvas'   },
+  { name:'36×48',   w:36,   h:48,   cat:'canvas'   },
+  { name:'40×40',   w:40,   h:40,   cat:'canvas'   },
+  { name:'40×60',   w:40,   h:60,   cat:'canvas'   },
+  { name:'48×60',   w:48,   h:60,   cat:'canvas'   },
+  { name:'48×72',   w:48,   h:72,   cat:'canvas'   },
+  { name:'60×80',   w:60,   h:80,   cat:'canvas'   },
+];
+
+const CAT_LABELS = {
+  wallet:   'Wallet prints',
+  standard: 'Standard prints',
+  large:    'Large format',
+  canvas:   'Canvas & Mural',
+};
+
+const DPI = 300;
+let sourceImg = null, srcW = 0, srcH = 0;
+let selected = new Set();
+let currentCat = 'all';
+
+function px(inches) { return Math.round(inches * DPI); }
+
+// ── Build size grid ──────────────────────────────────
+function buildGrid(cat) {
+  const container = document.getElementById('sizeContainer');
+  container.innerHTML = '';
+
+  const cats = cat === 'all'
+    ? ['wallet','standard','large','canvas']
+    : [cat];
+
+  cats.forEach(c => {
+    const sizes = SIZES.filter(s => s.cat === c);
+    if (!sizes.length) return;
+
+    const section = document.createElement('div');
+    section.className = 'category-section';
+    section.innerHTML = `<div class="cat-heading">${CAT_LABELS[c]}</div>`;
+
+    const grid = document.createElement('div');
+    grid.className = 'size-grid';
+
+    sizes.forEach(s => {
+      const idx = SIZES.indexOf(s);
+      const pw = px(s.w), ph = px(s.h);
+      const btn = document.createElement('div');
+      btn.className = 'size-btn' + (selected.has(idx) ? ' selected' : '');
+      btn.dataset.idx = idx;
+      btn.onclick = () => toggleSize(idx, btn);
+      btn.innerHTML = `
+        <div class="size-in">${s.name}"</div>
+        <div class="size-px">${pw.toLocaleString()} × ${ph.toLocaleString()}<br>300 DPI · PNG</div>
+      `;
+      grid.appendChild(btn);
+    });
+
+    section.appendChild(grid);
+    container.appendChild(section);
+  });
+}
+
+function toggleSize(idx, btn) {
+  if (selected.has(idx)) { selected.delete(idx); btn.classList.remove('selected'); }
+  else { selected.add(idx); btn.classList.add('selected'); }
+  updateCount();
+}
+
+function selectAll() {
+  SIZES.forEach((_, i) => selected.add(i));
+  buildGrid(currentCat);
+  updateCount();
+}
+
+function selectNone() {
+  selected.clear();
+  buildGrid(currentCat);
+  updateCount();
+}
+
+function selectCat(cat) {
+  SIZES.forEach((s, i) => { if (s.cat === cat) selected.add(i); });
+  buildGrid(currentCat);
+  updateCount();
+}
+
+function filterCat(cat, el) {
+  currentCat = cat;
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  buildGrid(cat);
+}
+
+function updateCount() {
+  const n = selected.size;
+  const note = document.getElementById('countNote');
+  note.textContent = n === 0 ? 'No sizes selected' : `${n} size${n > 1 ? 's' : ''} selected — ready to export`;
+  document.getElementById('exportBtn').disabled = (n === 0 || !sourceImg);
+}
+
+// ── Photo load ───────────────────────────────────────
+function handleFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  img.onload = () => {
+    sourceImg = img; srcW = img.naturalWidth; srcH = img.naturalHeight;
+    document.getElementById('previewImg').src = url;
+    document.getElementById('fileName').textContent = file.name;
+    const mp = (srcW * srcH / 1e6).toFixed(1);
+    document.getElementById('fileDims').textContent =
+      `${srcW.toLocaleString()} × ${srcH.toLocaleString()} px · ${mp} MP`;
+
+    const q = srcW * srcH / 1e6;
+    const pill = document.getElementById('qualityPill');
+    if (q >= 40) { pill.textContent = '7K+ excellent'; pill.className = 'quality-pill q-great'; }
+    else if (q >= 20) { pill.textContent = '5K+ good'; pill.className = 'quality-pill q-good'; }
+    else if (q >= 8)  { pill.textContent = '4K fair'; pill.className = 'quality-pill q-good'; }
+    else              { pill.textContent = 'Low res'; pill.className = 'quality-pill q-low'; }
+
+    document.getElementById('dropZone').style.display = 'none';
+    document.getElementById('previewCard').style.display = 'block';
+    updateCount();
+  };
+  img.src = url;
+}
+
+function resetPhoto() {
+  sourceImg = null;
+  document.getElementById('dropZone').style.display = 'block';
+  document.getElementById('previewCard').style.display = 'none';
+  document.getElementById('fileInput').value = '';
+  document.getElementById('progressWrap').style.display = 'none';
+  document.getElementById('logList').innerHTML = '';
+  updateCount();
+}
+
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('drag-over'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag-over'));
+dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('drag-over'); handleFile(e.dataTransfer.files[0]); });
+document.getElementById('fileInput').addEventListener('change', e => handleFile(e.target.files[0]));
+
+// ── PNG with DPI + sRGB metadata ─────────────────────
+const crcTable = (() => {
+  const t = new Int32Array(256);
+  for (let n = 0; n < 256; n++) {
+    let c = n;
+    for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c;
+  }
+  return t;
+})();
+
+function crc32(buf) {
+  let c = -1;
+  for (let i = 0; i < buf.length; i++) c = crcTable[(c ^ buf[i]) & 0xFF] ^ (c >>> 8);
+  return c ^ -1;
+}
+
+function makeChunk(type, data) {
+  const chunk = new Uint8Array(12 + data.length);
+  const dv = new DataView(chunk.buffer);
+  dv.setUint32(0, data.length, false);
+  for (let i = 0; i < 4; i++) chunk[4 + i] = type.charCodeAt(i);
+  chunk.set(data, 8);
+  dv.setInt32(8 + data.length, crc32(chunk.slice(4, 8 + data.length)), false);
+  return chunk;
+}
+
+function buildPNG(canvas) {
+  return new Promise(resolve => {
+    canvas.toBlob(blob => {
+      blob.arrayBuffer().then(buf => {
+        const view = new Uint8Array(buf);
+        const insertAt = 33; // after PNG sig + IHDR
+        const ppm = Math.round(300 / 0.0254); // 11811 px/meter
+
+        // sRGB chunk
+        const srgbChunk = makeChunk('sRGB', new Uint8Array([0]));
+
+        // pHYs chunk
+        const physData = new Uint8Array(9);
+        const dv = new DataView(physData.buffer);
+        dv.setUint32(0, ppm, false);
+        dv.setUint32(4, ppm, false);
+        physData[8] = 1;
+        const physChunk = makeChunk('pHYs', physData);
+
+        const insert = new Uint8Array(srgbChunk.length + physChunk.length);
+        insert.set(srgbChunk, 0);
+        insert.set(physChunk, srgbChunk.length);
+
+        const out = new Uint8Array(view.length + insert.length);
+        out.set(view.slice(0, insertAt), 0);
+        out.set(insert, insertAt);
+        out.set(view.slice(insertAt), insertAt + insert.length);
+
+        resolve(new Blob([out], { type: 'image/png' }));
+      });
+    }, 'image/png');
+  });
+}
+
+// ── Export ───────────────────────────────────────────
+async function exportOne(size) {
+  const tw = px(size.w), th = px(size.h);
+  const canvas = document.createElement('canvas');
+  canvas.width = tw; canvas.height = th;
+  const ctx = canvas.getContext('2d');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+
+  // Center crop
+  const srcAspect = srcW / srcH, dstAspect = tw / th;
+  let sx, sy, sw, sh;
+  if (srcAspect > dstAspect) {
+    sh = srcH; sw = srcH * dstAspect; sx = (srcW - sw) / 2; sy = 0;
+  } else {
+    sw = srcW; sh = srcW / dstAspect; sx = 0; sy = (srcH - sh) / 2;
+  }
+  ctx.drawImage(sourceImg, sx, sy, sw, sh, 0, 0, tw, th);
+
+  const blob = await buildPNG(canvas);
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  const label = size.name.replace('×', 'x').replace('.', 'p');
+  a.download = `print_${label}in_300dpi.png`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function startExport() {
+  const btn = document.getElementById('exportBtn');
+  btn.disabled = true;
+  btn.textContent = 'Exporting...';
+
+  const wrap = document.getElementById('progressWrap');
+  wrap.style.display = 'block';
+  const fill = document.getElementById('progFill');
+  const lbl = document.getElementById('progLabel');
+  const log = document.getElementById('logList');
+  log.innerHTML = '';
+
+  const idxArr = [...selected].sort((a, b) => a - b);
+  let done = 0;
+
+  for (const i of idxArr) {
+    const s = SIZES[i];
+    lbl.textContent = `Creating ${s.name}" — ${px(s.w).toLocaleString()} × ${px(s.h).toLocaleString()} px...`;
+    try {
+      await exportOne(s);
+      const li = document.createElement('div');
+      li.className = 'log-item done';
+      li.textContent = `✓  print_${s.name.replace('×','x')}in_300dpi.png`;
+      log.appendChild(li);
+      log.scrollTop = log.scrollHeight;
+    } catch (e) {
+      const li = document.createElement('div');
+      li.className = 'log-item err';
+      li.textContent = `✗  ${s.name}" — ${e.message}`;
+      log.appendChild(li);
+    }
+    done++;
+    fill.style.width = Math.round((done / idxArr.length) * 100) + '%';
+    await sleep(120);
+  }
+
+  lbl.textContent = `Done — ${done} print-ready file${done > 1 ? 's' : ''} saved to Downloads`;
+  btn.textContent = 'Export Selected Sizes';
+  btn.disabled = false;
+}
+
+// ── Init ─────────────────────────────────────────────
+buildGrid('all');
+updateCount();
+</script>
+</body>
+</html>
